@@ -2,9 +2,11 @@ package main
 
 import (
 	"bufio"
+	crand "crypto/rand"
 	"fmt"
 	"log"
 	"math/big"
+	"math/rand"
 	"os"
 	"strconv"
 
@@ -38,21 +40,6 @@ func promptUint(msg string, def uint64, scanner *bufio.Scanner) uint64 {
 		}
 		if n, err := strconv.ParseUint(str, 10, 64); err == nil {
 			return n
-		}
-	}
-}
-
-// Asks the user to enter an arbitrarily large integer.
-// Terminates the program in case of error or unexpected EOF.
-func promptBigInt(msg string, scanner *bufio.Scanner) *big.Int {
-	var n big.Float
-	for {
-		str := prompt(msg, scanner)
-		if str != "" {
-			if _, _, err := n.Parse(str, 10); err == nil {
-				i, _ := n.Int(nil)
-				return i
-			}
 		}
 	}
 }
@@ -104,8 +91,9 @@ func main() {
 
 	// Ask the user the required parameters
 	scanner := bufio.NewScanner(os.Stdin)
-	bitLength := promptUint("Insert the number of bits of the identifiers", 5, scanner)
-	numNodes := promptUint("Insert the number of nodes in the network", 10, scanner)
+	bitLength := promptUint("Insert the number of bits of the identifiers", 160, scanner)
+	numNodes := promptUint("Insert the number of nodes in the network", 10000, scanner)
+	numQueries := promptUint("Insert the number of queries to run", 10000, scanner)
 
 	bigBitLength := big.NewInt(int64(bitLength))
 	bigNumNodes := big.NewInt(int64(numNodes))
@@ -123,41 +111,30 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Print out some info about the network
-	sim.WalkNodes(func(node *chord.Node) {
-		fmt.Printf("- Node #%v:\n", node.ID)
-		fmt.Printf("  Predecessor: #%v\n", node.Predecessor.ID)
-		fmt.Printf("  Routing table:\n")
-		for _, entry := range node.FingerTable {
-			fmt.Printf("  - Target %v => Node #%v\n", entry.ID, entry.Node.ID)
-		}
-	})
+	fmt.Printf("Network bootstrap complete.\n")
+	fmt.Printf("Running %d queries...\n", numQueries)
 
-	for {
+	for i := uint64(0); i < numQueries; i++ {
 
-		// Query parameters
-		target := promptBigInt("Target of the query", scanner)
-		var originatingNode *chord.Node
-		for {
-			nodeID := promptBigInt("Node originator of the query", scanner)
-			originatingNode = sim.NodeByID(BigIntIdentifier{bigBitLength, &bigCount, nodeID})
-			if originatingNode != nil {
-				break
-			}
-			fmt.Printf("Cannot find node with id #%v.\n", nodeID.Text(10))
+		// Random target
+		max := new(big.Int)
+		max.Exp(big.NewInt(2), bigBitLength, nil).Sub(max, big.NewInt(1))
+		target, err := crand.Int(crand.Reader, max)
+		if err != nil {
+			panic(err)
 		}
+
+		// Random originator
+		nodes := sim.Nodes()
+		originatingNode := nodes[rand.Intn(len(nodes))]
 
 		// Perform the query
-		res := sim.Query(BigIntIdentifier{bigBitLength, &bigCount, target}, originatingNode)
-		fmt.Println("Query results:")
-		fmt.Printf("- Target ID: %v\n", res.TargetID())
-		fmt.Printf("- Originating node: #%v\n", res.OriginatingNode().ID)
-		fmt.Printf("- Hops:")
-		for _, node := range res.Hops() {
-			fmt.Printf(" #%v", node.ID)
-		}
-		fmt.Printf("\n")
-		fmt.Printf("- Result: #%v\n", res.Result().ID)
+		sim.Query(BigIntIdentifier{bigBitLength, &bigCount, target}, originatingNode)
+
+		// Progress
+		fmt.Printf("\033[2K\r%d/10000", i+1)
 
 	}
+
+	fmt.Printf("\n")
 }

@@ -127,12 +127,9 @@ func (sim *Simulator) NodeByID(id Identifier) *Node {
 	return nil
 }
 
-// WalkNodes executes the given function for each node in the network.
-// The order of the nodes is the same of their identifiers.
-func (sim *Simulator) WalkNodes(f func(*Node)) {
-	for _, node := range sim.sortedNodes {
-		f(node)
-	}
+// Nodes returns a slice containing all the nodes in the simulation in order of their identifiers.
+func (sim *Simulator) Nodes() []*Node {
+	return sim.sortedNodes
 }
 
 // Query simulates the execution of a query originating from node and directed to id.
