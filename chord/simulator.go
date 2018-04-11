@@ -30,6 +30,7 @@ type Node struct {
 	ID          Identifier
 	FingerTable []FingerTableEntry
 	Predecessor *Node
+	stats       nodeStats
 }
 
 // A FingerTableEntry reprents a single row of the routing table of Chord node.

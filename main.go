@@ -2,14 +2,18 @@ package main
 
 import (
 	"bufio"
-	"crypto/rand"
 	"fmt"
 	"log"
-	"math/big"
 	"os"
+	"path"
 	"strconv"
 
-	"github.com/95ulisse/chord-simulator/lib"
+	"github.com/95ulisse/chord-simulator/chord"
+
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/plotutil"
+	"gonum.org/v1/plot/vg"
 )
 
 // Asks the user to enter a value.
@@ -43,80 +47,33 @@ func promptUint(msg string, def uint64, scanner *bufio.Scanner) uint64 {
 	}
 }
 
-type BigIntIdentifierSpace struct {
-	bitLength *big.Int
-	count     *big.Int
-}
-
-type BigIntIdentifier struct {
-	space *BigIntIdentifierSpace
-	n     *big.Int
-}
-
-func NewBigIntIdentifierSpace(bits uint64) *BigIntIdentifierSpace {
-	bigBits := new(big.Int).SetUint64(bits)
-	count := new(big.Int).Exp(big.NewInt(2), bigBits, nil)
-	return &BigIntIdentifierSpace{bigBits, count}
-}
-
-func (space BigIntIdentifierSpace) BitLength() uint64 {
-	return space.bitLength.Uint64()
-}
-
-func (space BigIntIdentifierSpace) Random() chord.Identifier {
-
-	max := new(big.Int).Sub(space.count, big.NewInt(1))
-
-	// Pick some random bytes
-	r, err := rand.Int(rand.Reader, max)
-	if err != nil {
-		log.Fatal(err)
+// Asks the user to enter a string.
+// Terminates the program in case of error or unexpected EOF.
+func promptString(msg string, def string, scanner *bufio.Scanner) string {
+	str := prompt(fmt.Sprintf("%s [default: %s]", msg, def), scanner)
+	if str == "" {
+		return def
 	}
-
-	return BigIntIdentifier{&space, r}
-}
-
-func (a BigIntIdentifier) Next(n uint64) chord.Identifier {
-	res := new(big.Int).SetUint64(n)
-	res.Add(res, a.n)
-	res.Mod(res, a.space.count)
-	return BigIntIdentifier{a.space, res}
-}
-
-func (a BigIntIdentifier) Equal(other chord.Identifier) bool {
-	b := other.(BigIntIdentifier)
-	return a.n.CmpAbs(b.n) == 0
-}
-
-func (a BigIntIdentifier) LessThan(other chord.Identifier) bool {
-	b := other.(BigIntIdentifier)
-	return a.n.CmpAbs(b.n) == -1
-}
-
-func (a BigIntIdentifier) IsBetween(f, t chord.Identifier) bool {
-	from, to := f.(BigIntIdentifier), t.(BigIntIdentifier)
-
-	// from <= to
-	if from.n.CmpAbs(to.n) <= 0 {
-		return a.n.CmpAbs(to.n) <= 0 && a.n.CmpAbs(from.n) >= 0
-	}
-	return a.n.CmpAbs(to.n) <= 0 || a.n.CmpAbs(from.n) >= 0
-}
-
-func (a BigIntIdentifier) String() string {
-	return a.n.Text(10)
+	return str
 }
 
 func main() {
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Ask the user the required parameters
 	scanner := bufio.NewScanner(os.Stdin)
 	bitLength := promptUint("Insert the number of bits of the identifiers", 160, scanner)
 	numNodes := promptUint("Insert the number of nodes in the network", 10000, scanner)
 	numQueries := promptUint("Insert the number of queries to run", 10000, scanner)
+	plotsDir := promptString("Insert the path in which to save the resulting plots", cwd, scanner)
 
 	// Prepare a new simulator
-	sim, err := chord.NewSimulator(numNodes, NewBigIntIdentifierSpace(bitLength))
+	fmt.Printf("Creating Chord network of %d nodes...\n", numNodes)
+	sim, err := chord.NewSimulator(numNodes, chord.NewBigIntIdentifierSpace(bitLength))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -125,9 +82,66 @@ func main() {
 	fmt.Printf("Running simulation...\n")
 
 	// Runs the full simulation
-	sim.RunSimulation(numQueries, func(percentage float32) {
+	simRes := sim.RunSimulation(int(numQueries), func(percentage float32) {
 		fmt.Printf("\033[2K\r%.2f%%/100%%", percentage*100)
 	})
-	fmt.Printf("\n")
+	fmt.Print("\n")
 
+	// Print what is printable
+	fmt.Printf("\n")
+	fmt.Printf("Results:\n")
+	fmt.Printf("- Average hop count: %.2f\n", simRes.AvgHopCount)
+	fmt.Printf("- Average number of queries received by each node: %.2f\n", simRes.AvgQueriesReceived)
+
+	// Start plotting the stats
+	fmt.Printf("\n")
+	fmt.Printf("Saving plots to %s...\n", plotsDir)
+	plotMap(simRes.QueryReceivedCounts, vg.Points(20), "Queries received", "Number of queries", "Nodes", path.Join(plotsDir, "QueryReceivedCounts.png"))
+	plotMap(simRes.HopCounts, vg.Points(2), "Hop counts", "Occurrencies", "Hops", path.Join(plotsDir, "HopCounts.png"))
+
+}
+
+func plotMap(m map[uint64]uint64, width vg.Length, title, x, y, filename string) {
+	p, err := plot.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+	p.Title.Text = title
+	p.X.Label.Text = x
+	p.Y.Label.Text = y
+
+	bars, err := plotter.NewBarChart(plottableMap(m), width)
+	if err != nil {
+		log.Fatal(err)
+	}
+	bars.LineStyle.Width = vg.Length(0)
+	bars.Color = plotutil.Color(0)
+
+	p.Add(bars)
+
+	if err := p.Save(10*vg.Inch, 6*vg.Inch, filename); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("- %s\n", filename)
+}
+
+type plottableMap map[uint64]uint64
+
+func (m plottableMap) Len() int {
+	if len(m) == 0 {
+		return 0
+	}
+
+	var max uint64
+	for k := range m {
+		if k > max {
+			max = k
+		}
+	}
+
+	return int(max)
+}
+
+func (m plottableMap) Value(i int) float64 {
+	return float64(m[uint64(i)])
 }
