@@ -2,11 +2,10 @@ package main
 
 import (
 	"bufio"
-	crand "crypto/rand"
+	"crypto/rand"
 	"fmt"
 	"log"
 	"math/big"
-	"math/rand"
 	"os"
 	"strconv"
 
@@ -44,23 +43,44 @@ func promptUint(msg string, def uint64, scanner *bufio.Scanner) uint64 {
 	}
 }
 
-type BigIntIdentifier struct {
+type BigIntIdentifierSpace struct {
 	bitLength *big.Int
 	count     *big.Int
-	n         *big.Int
 }
 
-func (a BigIntIdentifier) BitLength() uint {
-	return uint(a.bitLength.Uint64())
+type BigIntIdentifier struct {
+	space *BigIntIdentifierSpace
+	n     *big.Int
 }
 
-func (a BigIntIdentifier) Next(n uint) chord.Identifier {
-	var res big.Int
-	var bigN big.Int
-	bigN.SetUint64(uint64(n))
-	res.Add(a.n, &bigN)
-	res.Mod(&res, a.count)
-	return BigIntIdentifier{a.bitLength, a.count, &res}
+func NewBigIntIdentifierSpace(bits uint64) *BigIntIdentifierSpace {
+	bigBits := new(big.Int).SetUint64(bits)
+	count := new(big.Int).Exp(big.NewInt(2), bigBits, nil)
+	return &BigIntIdentifierSpace{bigBits, count}
+}
+
+func (space BigIntIdentifierSpace) BitLength() uint64 {
+	return space.bitLength.Uint64()
+}
+
+func (space BigIntIdentifierSpace) Random() chord.Identifier {
+
+	max := new(big.Int).Sub(space.count, big.NewInt(1))
+
+	// Pick some random bytes
+	r, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return BigIntIdentifier{&space, r}
+}
+
+func (a BigIntIdentifier) Next(n uint64) chord.Identifier {
+	res := new(big.Int).SetUint64(n)
+	res.Add(res, a.n)
+	res.Mod(res, a.space.count)
+	return BigIntIdentifier{a.space, res}
 }
 
 func (a BigIntIdentifier) Equal(other chord.Identifier) bool {
@@ -95,46 +115,19 @@ func main() {
 	numNodes := promptUint("Insert the number of nodes in the network", 10000, scanner)
 	numQueries := promptUint("Insert the number of queries to run", 10000, scanner)
 
-	bigBitLength := big.NewInt(int64(bitLength))
-	bigNumNodes := big.NewInt(int64(numNodes))
-	var bigCount big.Int
-	bigCount.Exp(big.NewInt(2), bigBitLength, nil)
-
 	// Prepare a new simulator
-	sim, err := chord.NewSimulator(numNodes, func(n uint64) chord.Identifier {
-		var tmp big.Int
-		tmp.Div(&bigCount, bigNumNodes)
-		tmp.Mul(&tmp, big.NewInt(int64(n)))
-		return BigIntIdentifier{bigBitLength, &bigCount, &tmp}
-	})
+	sim, err := chord.NewSimulator(numNodes, NewBigIntIdentifierSpace(bitLength))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Printf("Network bootstrap complete.\n")
-	fmt.Printf("Running %d queries...\n", numQueries)
+	fmt.Printf("Running simulation...\n")
 
-	for i := uint64(0); i < numQueries; i++ {
-
-		// Random target
-		max := new(big.Int)
-		max.Exp(big.NewInt(2), bigBitLength, nil).Sub(max, big.NewInt(1))
-		target, err := crand.Int(crand.Reader, max)
-		if err != nil {
-			panic(err)
-		}
-
-		// Random originator
-		nodes := sim.Nodes()
-		originatingNode := nodes[rand.Intn(len(nodes))]
-
-		// Perform the query
-		sim.Query(BigIntIdentifier{bigBitLength, &bigCount, target}, originatingNode)
-
-		// Progress
-		fmt.Printf("\033[2K\r%d/10000", i+1)
-
-	}
-
+	// Runs the full simulation
+	sim.RunSimulation(numQueries, func(percentage float32) {
+		fmt.Printf("\033[2K\r%.2f%%/100%%", percentage*100)
+	})
 	fmt.Printf("\n")
+
 }

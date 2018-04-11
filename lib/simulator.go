@@ -10,10 +10,16 @@ var (
 	errDuplicateIdentifier = errors.New("Duplicate node identifier")
 )
 
+// An IdentifierSpace contains infos about the circular space of identifiers
+// used in Chord simulation.
+type IdentifierSpace interface {
+	BitLength() uint64
+	Random() Identifier
+}
+
 // An Identifier in the Chord network.
 type Identifier interface {
-	BitLength() uint
-	Next(uint) Identifier
+	Next(uint64) Identifier
 	Equal(Identifier) bool
 	LessThan(Identifier) bool
 	IsBetween(from, to Identifier) bool
@@ -34,6 +40,7 @@ type FingerTableEntry struct {
 
 // A Simulator keeps track of the whole state of the Chord simulation.
 type Simulator struct {
+	idSpace     IdentifierSpace
 	sortedNodes []*Node
 }
 
@@ -80,14 +87,14 @@ func successor(sim *Simulator, id Identifier) *Node {
 
 // NewSimulator creates a new Chord simulator with the given number of nodes.
 // This function also creates and fills the finger tables of the nodes.
-func NewSimulator(numNodes uint64, identifierFactory func(uint64) Identifier) (*Simulator, error) {
+func NewSimulator(numNodes uint64, idSpace IdentifierSpace) (*Simulator, error) {
 
-	sim := &Simulator{}
+	sim := &Simulator{idSpace, nil}
 
 	// Create all the nodes
 	for i := uint64(0); i < numNodes; i++ {
 		node := &Node{
-			ID: identifierFactory(i),
+			ID: idSpace.Random(),
 		}
 		nodes, ok := insertSorted(sim.sortedNodes, node)
 		if !ok {
@@ -103,8 +110,8 @@ func NewSimulator(numNodes uint64, identifierFactory func(uint64) Identifier) (*
 		node.Predecessor = sim.sortedNodes[(i-1+len(sim.sortedNodes))%len(sim.sortedNodes)]
 
 		// Finger table
-		for i := uint(0); i < node.ID.BitLength(); i++ {
-			nextID := node.ID.Next(uint(math.Pow(2, float64(i))))
+		for i := uint64(0); i < idSpace.BitLength(); i++ {
+			nextID := node.ID.Next(uint64(math.Pow(2, float64(i))))
 			node.FingerTable = append(node.FingerTable, FingerTableEntry{
 				ID:   nextID,
 				Node: successor(sim, nextID),
