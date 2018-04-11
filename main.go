@@ -69,7 +69,7 @@ func main() {
 	bitLength := promptUint("Insert the number of bits of the identifiers", 160, scanner)
 	numNodes := promptUint("Insert the number of nodes in the network", 10000, scanner)
 	numQueries := promptUint("Insert the number of queries to run", 10000, scanner)
-	plotsDir := promptString("Insert the path in which to save the resulting plots", cwd, scanner)
+	outDir := promptString("Insert the path in which to save the additional files", cwd, scanner)
 
 	// Prepare a new simulator
 	fmt.Printf("Creating Chord network of %d nodes...\n", numNodes)
@@ -77,11 +77,44 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	fmt.Printf("Network bootstrap complete.\n")
-	fmt.Printf("Running simulation...\n")
+
+	// Saves network topology to a file
+	{
+		topologyFile, err := os.Create(path.Join(outDir, "NetworkTopology.sif"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer topologyFile.Close()
+
+		fmt.Printf("Saving network topology to %s...\n", topologyFile.Name())
+		writer := bufio.NewWriter(topologyFile)
+		for _, node := range sim.Nodes() {
+			if _, err := writer.WriteString(fmt.Sprintf("%s link", node.ID)); err != nil {
+				log.Fatal(err)
+			}
+
+			// Write distinct finger table entries only
+			var lastID *chord.Identifier
+			for _, entry := range node.FingerTable {
+				if lastID != nil && (*lastID).Equal(entry.Node.ID) {
+					continue
+				}
+				if _, err := writer.WriteString(fmt.Sprintf(" %s", entry.Node.ID)); err != nil {
+					log.Fatal(err)
+				}
+				lastID = &entry.Node.ID
+			}
+
+			if err := writer.WriteByte('\n'); err != nil {
+				log.Fatal(err)
+			}
+		}
+		writer.Flush()
+	}
 
 	// Runs the full simulation
+	fmt.Printf("Running simulation...\n")
 	simRes := sim.RunSimulation(int(numQueries), func(percentage float32) {
 		fmt.Printf("\033[2K\r%.2f%%/100%%", percentage*100)
 	})
@@ -95,9 +128,9 @@ func main() {
 
 	// Start plotting the stats
 	fmt.Printf("\n")
-	fmt.Printf("Saving plots to %s...\n", plotsDir)
-	plotMap(simRes.QueryReceivedCounts, vg.Points(20), "Queries received", "Number of queries", "Nodes", path.Join(plotsDir, "QueryReceivedCounts.png"))
-	plotMap(simRes.HopCounts, vg.Points(2), "Hop counts", "Occurrencies", "Hops", path.Join(plotsDir, "HopCounts.png"))
+	fmt.Printf("Saving plots to %s...\n", outDir)
+	plotMap(simRes.QueryReceivedCounts, vg.Points(20), "Queries received", "Number of queries received", "Occurrencies", path.Join(outDir, "QueryReceivedCounts.png"))
+	plotMap(simRes.HopCounts, vg.Points(2), "Hop counts", "Query hops", "Occurrencies", path.Join(outDir, "HopCounts.png"))
 
 }
 
