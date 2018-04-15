@@ -2,12 +2,11 @@ package chord
 
 import (
 	"errors"
-	"math"
 	"sort"
 )
 
 var (
-	errDuplicateIdentifier = errors.New("Duplicate node identifier")
+	errDuplicateIdentifier = errors.New("duplicate node identifier")
 )
 
 // An IdentifierSpace contains infos about the circular space of identifiers
@@ -19,7 +18,7 @@ type IdentifierSpace interface {
 
 // An Identifier in the Chord network.
 type Identifier interface {
-	Next(uint64) Identifier
+	ComputeFingerTableTarget(uint64) Identifier
 	Equal(Identifier) bool
 	LessThan(Identifier) bool
 	IsBetween(from, to Identifier) bool
@@ -112,7 +111,7 @@ func NewSimulator(numNodes uint64, idSpace IdentifierSpace) (*Simulator, error) 
 
 		// Finger table
 		for i := uint64(0); i < idSpace.BitLength(); i++ {
-			nextID := node.ID.Next(uint64(math.Pow(2, float64(i))))
+			nextID := node.ID.ComputeFingerTableTarget(i)
 			node.FingerTable = append(node.FingerTable, FingerTableEntry{
 				ID:   nextID,
 				Node: successor(sim, nextID),

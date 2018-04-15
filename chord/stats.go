@@ -15,7 +15,7 @@ type nodeStats struct {
 type SimulationStats struct {
 
 	// Map describing how many nodes have received a number of queries.
-	// If QueryReceviedCounts[x] = y, then it means that y nodes have received x queries.
+	// If QueryReceivedCounts[x] = y, then it means that y nodes have received x queries.
 	QueryReceivedCounts map[uint64]uint64
 
 	// Average number of queries received by a node.
@@ -43,9 +43,11 @@ func (sim *Simulator) RunSimulation(numQueries int, cb func(float32)) *Simulatio
 		node.stats.numQueriesReceived = 0
 	}
 
-	var processedQuiries uint64
+	var processedQueries uint64
 	var wg sync.WaitGroup
 	wg.Add(numQueries)
+
+	sem := make(chan struct{}, 100)
 
 	for i := 0; i < numQueries; i++ {
 		go func() {
@@ -69,14 +71,20 @@ func (sim *Simulator) RunSimulation(numQueries int, cb func(float32)) *Simulatio
 			res.lock.Unlock()
 
 			// Report progress
-			progress := atomic.AddUint64(&processedQuiries, 1)
+			progress := atomic.AddUint64(&processedQueries, 1)
 			cb(float32(progress) / float32(numQueries))
+
+			// Signal that we finished
 			wg.Done()
+			<-sem
 
 		}()
+
+		// This will block if there are already 100 goroutines executing
+		sem <- struct{}{}
 	}
 
-	// Wait for all the quieries to run
+	// Wait for all the queries to run
 	wg.Wait()
 
 	// Adjust the average hop count that we just incremented until now

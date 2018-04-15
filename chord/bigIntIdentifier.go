@@ -39,8 +39,9 @@ func (space bigIntIdentifierSpace) Random() Identifier {
 	return bigIntIdentifier{&space, r}
 }
 
-func (a bigIntIdentifier) Next(n uint64) Identifier {
-	res := new(big.Int).SetUint64(n)
+func (a bigIntIdentifier) ComputeFingerTableTarget(i uint64) Identifier {
+	res := new(big.Int)
+	res.Exp(big.NewInt(2), new(big.Int).SetUint64(i), nil)
 	res.Add(res, a.n)
 	res.Mod(res, a.space.count)
 	return bigIntIdentifier{a.space, res}

@@ -128,13 +128,13 @@ func main() {
 
 	// Start plotting the stats
 	fmt.Printf("\n")
-	fmt.Printf("Saving plots to %s...\n", outDir)
-	plotMap(simRes.QueryReceivedCounts, vg.Points(20), "Queries received", "Number of queries received", "Occurrencies", path.Join(outDir, "QueryReceivedCounts.png"))
-	plotMap(simRes.HopCounts, vg.Points(2), "Hop counts", "Query hops", "Occurrencies", path.Join(outDir, "HopCounts.png"))
+	fmt.Printf("Generating plots...\n")
+	plotMap(simRes.QueryReceivedCounts, "Queries received", "Number of queries received", "Occurrencies", path.Join(outDir, "QueryReceivedCounts.png"))
+	plotMap(simRes.HopCounts, "Hop counts", "Query hops", "Occurrencies", path.Join(outDir, "HopCounts.png"))
 
 }
 
-func plotMap(m map[uint64]uint64, width vg.Length, title, x, y, filename string) {
+func plotMap(m map[uint64]uint64, title, x, y, filename string) {
 	p, err := plot.New()
 	if err != nil {
 		log.Fatal(err)
@@ -143,7 +143,7 @@ func plotMap(m map[uint64]uint64, width vg.Length, title, x, y, filename string)
 	p.X.Label.Text = x
 	p.Y.Label.Text = y
 
-	bars, err := plotter.NewBarChart(plottableMap(m), width)
+	bars, err := plotter.NewBarChart(plottableMap(m), vg.Points(20))
 	if err != nil {
 		log.Fatal(err)
 	}
