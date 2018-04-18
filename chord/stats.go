@@ -9,6 +9,7 @@ import (
 // NodeStats keeps track of the statistics for a single node of a Chord simulation.
 type nodeStats struct {
 	numQueriesReceived uint64
+	inDegree           uint64
 }
 
 // SimulationStats contains some useful statistics on the whole simulation of a Chord network.
@@ -29,6 +30,18 @@ type SimulationStats struct {
 	AvgHopCount float32
 
 	lock sync.Mutex
+}
+
+// TopologicalStats contains some useful statistics about the topology of a Chord network.
+type TopologicalStats struct {
+
+	// Number of incoming edges.
+	// If InDegrees[x] = y, then it means that y nodes have x incoming edges.
+	InDegrees map[uint64]uint64
+
+	// Number of outgoing edges.
+	// If OutDegrees[x] = y, then it means that y nodes have x outgoing edges.
+	OutDegrees map[uint64]uint64
 }
 
 func (sim *Simulator) RunSimulation(numQueries int, cb func(float32)) *SimulationStats {
@@ -102,4 +115,19 @@ func (sim *Simulator) RunSimulation(numQueries int, cb func(float32)) *Simulatio
 	cb(1)
 
 	return res
+}
+
+func (sim *Simulator) TopologicalStats() *TopologicalStats {
+	stats := &TopologicalStats{
+		InDegrees:  make(map[uint64]uint64),
+		OutDegrees: make(map[uint64]uint64),
+	}
+
+	// Group the degrees
+	for _, node := range sim.sortedNodes {
+		stats.InDegrees[node.stats.inDegree]++
+		stats.OutDegrees[uint64(len(node.FingerTable))]++
+	}
+
+	return stats
 }

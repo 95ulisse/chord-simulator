@@ -112,9 +112,13 @@ func NewSimulator(numNodes uint64, idSpace IdentifierSpace) (*Simulator, error) 
 		// Finger table
 		for i := uint64(0); i < idSpace.BitLength(); i++ {
 			nextID := node.ID.ComputeFingerTableTarget(i)
+			succ := successor(sim, nextID)
+			if len(node.FingerTable) > 0 && node.FingerTable[len(node.FingerTable)-1].Node != succ {
+				succ.stats.inDegree++
+			}
 			node.FingerTable = append(node.FingerTable, FingerTableEntry{
 				ID:   nextID,
-				Node: successor(sim, nextID),
+				Node: succ,
 			})
 		}
 

@@ -72,6 +72,7 @@ func main() {
 	outDir := promptString("Insert the path in which to save the additional files", cwd, scanner)
 
 	// Prepare a new simulator
+	fmt.Printf("\n")
 	fmt.Printf("Creating Chord network of %d nodes...\n", numNodes)
 	sim, err := chord.NewSimulator(numNodes, chord.NewBigIntIdentifierSpace(bitLength))
 	if err != nil {
@@ -87,7 +88,7 @@ func main() {
 		}
 		defer topologyFile.Close()
 
-		fmt.Printf("Saving network topology to %s...\n", topologyFile.Name())
+		fmt.Printf("Saving network topology to %s... ", topologyFile.Name())
 		writer := bufio.NewWriter(topologyFile)
 		for _, node := range sim.Nodes() {
 			if _, err := writer.WriteString(fmt.Sprintf("%s link", node.ID)); err != nil {
@@ -111,12 +112,22 @@ func main() {
 			}
 		}
 		writer.Flush()
+
+		fmt.Printf("Done.\n")
 	}
 
+	// Topological stats
+	fmt.Printf("\n")
+	fmt.Printf("Computing topological stats...\n")
+	topoStats := sim.TopologicalStats()
+	plotMap(topoStats.InDegrees, "In degrees", "In degree", "Nodes", path.Join(outDir, "InDegrees.png"))
+	plotMap(topoStats.OutDegrees, "Out degrees", "Out degree", "Nodes", path.Join(outDir, "OutDegrees.png"))
+
 	// Runs the full simulation
+	fmt.Printf("\n")
 	fmt.Printf("Running simulation...\n")
 	simRes := sim.RunSimulation(int(numQueries), func(percentage float32) {
-		fmt.Printf("\033[2K\r%.2f%%/100%%", percentage*100)
+		fmt.Printf("\033[2K\r%.2f%%/100.00%%", percentage*100)
 	})
 	fmt.Print("\n")
 
@@ -172,7 +183,7 @@ func (m plottableMap) Len() int {
 		}
 	}
 
-	return int(max)
+	return int(max) + 1
 }
 
 func (m plottableMap) Value(i int) float64 {
