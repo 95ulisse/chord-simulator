@@ -39,9 +39,15 @@ type TopologicalStats struct {
 	// If InDegrees[x] = y, then it means that y nodes have x incoming edges.
 	InDegrees map[uint64]uint64
 
+	// Average number of incoming edges.
+	AvgInDegree float32
+
 	// Number of outgoing edges.
 	// If OutDegrees[x] = y, then it means that y nodes have x outgoing edges.
 	OutDegrees map[uint64]uint64
+
+	// Average number of outgoing edges.
+	AvgOutDegree float32
 }
 
 func (sim *Simulator) RunSimulation(numQueries int, cb func(float32)) *SimulationStats {
@@ -125,9 +131,29 @@ func (sim *Simulator) TopologicalStats() *TopologicalStats {
 
 	// Group the degrees
 	for _, node := range sim.sortedNodes {
+
+		// The number of incoming edges is already computed at the time of creation of the network
 		stats.InDegrees[node.stats.inDegree]++
-		stats.OutDegrees[uint64(len(node.FingerTable))]++
+		stats.AvgInDegree += float32(node.stats.inDegree)
+
+		// Count the number of distinct outgoing edges
+		var outDeg uint64
+		var lastNode *Node
+		for _, entry := range node.FingerTable {
+			if lastNode != nil && lastNode == entry.Node {
+				continue
+			}
+			outDeg++
+			lastNode = entry.Node
+		}
+		stats.OutDegrees[outDeg]++
+		stats.AvgOutDegree += float32(outDeg)
+
 	}
+
+	// Finish computing the averages
+	stats.AvgInDegree /= float32(len(sim.sortedNodes))
+	stats.AvgOutDegree /= float32(len(sim.sortedNodes))
 
 	return stats
 }

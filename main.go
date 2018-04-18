@@ -120,11 +120,8 @@ func main() {
 	fmt.Printf("\n")
 	fmt.Printf("Computing topological stats...\n")
 	topoStats := sim.TopologicalStats()
-	plotMap(topoStats.InDegrees, "In degrees", "In degree", "Nodes", path.Join(outDir, "InDegrees.png"))
-	plotMap(topoStats.OutDegrees, "Out degrees", "Out degree", "Nodes", path.Join(outDir, "OutDegrees.png"))
 
 	// Runs the full simulation
-	fmt.Printf("\n")
 	fmt.Printf("Running simulation...\n")
 	simRes := sim.RunSimulation(int(numQueries), func(percentage float32) {
 		fmt.Printf("\033[2K\r%.2f%%/100.00%%", percentage*100)
@@ -134,12 +131,16 @@ func main() {
 	// Print what is printable
 	fmt.Printf("\n")
 	fmt.Printf("Results:\n")
+	fmt.Printf("- Average in degree: %.2f\n", topoStats.AvgInDegree)
+	fmt.Printf("- Average out degree: %.2f\n", topoStats.AvgOutDegree)
 	fmt.Printf("- Average hop count: %.2f\n", simRes.AvgHopCount)
 	fmt.Printf("- Average number of queries received by each node: %.2f\n", simRes.AvgQueriesReceived)
 
 	// Start plotting the stats
 	fmt.Printf("\n")
 	fmt.Printf("Generating plots...\n")
+	plotMap(topoStats.InDegrees, "In degrees", "In degree", "Nodes", path.Join(outDir, "InDegrees.png"))
+	plotMap(topoStats.OutDegrees, "Out degrees", "Out degree", "Nodes", path.Join(outDir, "OutDegrees.png"))
 	plotMap(simRes.QueryReceivedCounts, "Queries received", "Number of queries received", "Occurrencies", path.Join(outDir, "QueryReceivedCounts.png"))
 	plotMap(simRes.HopCounts, "Hop counts", "Query hops", "Occurrencies", path.Join(outDir, "HopCounts.png"))
 
