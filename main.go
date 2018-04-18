@@ -68,7 +68,7 @@ func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	bitLength := promptUint("Insert the number of bits of the identifiers", 160, scanner)
 	numNodes := promptUint("Insert the number of nodes in the network", 10000, scanner)
-	numQueries := promptUint("Insert the number of queries to run", 10000, scanner)
+	numQueries := promptUint("Insert the number of queries to run", 1000000, scanner)
 	outDir := promptString("Insert the path in which to save the additional files", cwd, scanner)
 
 	// Prepare a new simulator
