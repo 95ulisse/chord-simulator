@@ -1,9 +1,10 @@
 package chord
 
 import (
-	"crypto/rand"
-	"log"
+	"crypto/sha1"
+	"fmt"
 	"math/big"
+	"math/rand"
 )
 
 type bigIntIdentifierSpace struct {
@@ -28,13 +29,22 @@ func (space bigIntIdentifierSpace) BitLength() uint64 {
 
 func (space bigIntIdentifierSpace) Random() Identifier {
 
-	max := new(big.Int).Sub(space.count, big.NewInt(1))
+	// Generate a random IPv4 address and port
+	address := fmt.Sprintf("%d.%d.%d.%d:%d", rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(256), rand.Intn(65536))
 
-	// Pick some random bytes
-	r, err := rand.Int(rand.Reader, max)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Hash that string using SHA1 and truncate the result to the number of bits requested
+	sum := sha1.Sum([]byte(address))
+	r := new(big.Int).SetBytes(sum[:])
+	r.Mod(r, space.count)
+
+	/*
+		// Generates a random bit sequence
+		max := new(big.Int).Sub(space.count, big.NewInt(1))
+		r, err := rand.Int(rand.Reader, max)
+		if err != nil {
+			log.Fatal(err)
+		}
+	*/
 
 	return bigIntIdentifier{&space, r}
 }
